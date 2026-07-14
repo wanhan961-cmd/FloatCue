@@ -17,7 +17,9 @@ import {
   Flame,
   Info,
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  Camera,
+  X
 } from 'lucide-react';
 import { FloatCueConfig, PrompterLine } from './types';
 import { DEFAULT_SCRIPT_LINES } from './presets';
@@ -45,6 +47,7 @@ export default function App() {
   const [activeLineId, setActiveLineId] = useState<string>('1');
   const [isOverlayActive, setIsOverlayActive] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [showMobileGuideModal, setShowMobileGuideModal] = useState<boolean>(false);
 
   // System-level Picture-in-Picture States and Refs
   const [isPipActive, setIsPipActive] = useState<boolean>(false);
@@ -100,23 +103,6 @@ export default function App() {
     ctx.fillRect(0, 0, width, height);
 
     if (config.contentMode === 'text') {
-      // Glow boundary
-      ctx.strokeStyle = '#10B981';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(2, 2, width - 4, height - 4);
-
-      // Header info
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.font = 'bold 12px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText('FLOATCUE LIVE SYSTEM ∙ AUTOSCROLL', 20, 25);
-
-      // REC status
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath();
-      ctx.arc(width - 30, 22, 5, 0, Math.PI * 2);
-      ctx.fill();
-
       const lines = linesRef.current;
       const activeIndex = lines.findIndex(l => l.id === activeLineIdRef.current);
       const targetScrollY = activeIndex !== -1 ? activeIndex : 0;
@@ -125,7 +111,7 @@ export default function App() {
       pipScrollYRef.current += (targetScrollY - pipScrollYRef.current) * 0.12;
 
       const centerY = height / 2;
-      const lineSpacing = 70;
+      const lineSpacing = 72;
 
       lines.forEach((line, index) => {
         const relativeIndex = index - pipScrollYRef.current;
@@ -138,34 +124,16 @@ export default function App() {
 
         ctx.textAlign = 'center';
         if (isActive) {
-          ctx.fillStyle = '#10B981';
-          ctx.font = 'bold 26px sans-serif';
-          
-          // Draw focal brackets around active line
-          ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
-          ctx.lineWidth = 2;
-          
-          ctx.beginPath();
-          ctx.moveTo(40, y - 22);
-          ctx.lineTo(20, y - 22);
-          ctx.lineTo(20, y + 10);
-          ctx.lineTo(40, y + 10);
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.moveTo(width - 40, y - 22);
-          ctx.lineTo(width - 20, y - 22);
-          ctx.lineTo(width - 20, y + 10);
-          ctx.lineTo(width - 40, y + 10);
-          ctx.stroke();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 28px "Inter", -apple-system, BlinkMacSystemFont, sans-serif';
         } else {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-          ctx.font = '20px sans-serif';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.font = '22px "Inter", -apple-system, BlinkMacSystemFont, sans-serif';
         }
 
-        const wrappedLines = wrapText(ctx, line.text, width - 120);
+        const wrappedLines = wrapText(ctx, line.text, width - 100);
         wrappedLines.forEach((wrappedText, subIndex) => {
-          const subY = y + (subIndex - (wrappedLines.length - 1) / 2) * 28;
+          const subY = y + (subIndex - (wrappedLines.length - 1) / 2) * 32;
           ctx.fillText(wrappedText, width / 2, subY);
         });
       });
@@ -427,10 +395,14 @@ export default function App() {
   // Launch FloatCue Float Mode action
   const handleActivate = async () => {
     setIsOverlayActive(true);
-    if (!isPipActive) {
-      await handleTogglePiP();
+    if (isMobile) {
+      setShowMobileGuideModal(true);
     } else {
-      triggerToast("请开始录制，FloatCue 提词器与画中画参考已就位。");
+      if (!isPipActive) {
+        await handleTogglePiP();
+      } else {
+        triggerToast("请开始录制，FloatCue 提词器与画中画参考已就位。");
+      }
     }
   };
 
@@ -981,6 +953,130 @@ export default function App() {
           height: '10px'
         }}
       />
+
+      {/* Mobile Authorization & System PiP Setup Guide Modal */}
+      <AnimatePresence>
+        {showMobileGuideModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-[#121214] border border-white/10 rounded-3xl p-6 max-w-sm w-full flex flex-col gap-5 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] relative"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                  <ShieldCheck size={18} />
+                  <span className="text-sm font-sans tracking-wide">系统悬浮授权与攻略说明</span>
+                </div>
+                <button
+                  onClick={() => setShowMobileGuideModal(false)}
+                  className="text-white/40 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="text-xs text-white/70 leading-relaxed flex flex-col gap-4">
+                <p>
+                  因 iOS 苹果与 Android 系统的沙盒安全限制，网页<strong>无法直接获得系统级的“悬浮窗”或“在其他应用上层显示”的本地硬权限</strong>。
+                </p>
+                <p>
+                  为了在切换到相机或其他软件后依然能完美悬浮，FloatCue 特别采用<strong>“越级画中画浮窗技术”</strong>。请先完成以下本地授权，以确保功能完美运行：
+                </p>
+
+                {/* Local Permissions Box */}
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-3 flex flex-col gap-2.5">
+                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                    第一步：获取本地浏览器授权 (按需授权)
+                  </span>
+
+                  <div className="flex items-center justify-between gap-3 text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <Mic size={14} className="text-sky-400" />
+                      <span>麦克风 (语音自动跟读)</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.mediaDevices.getUserMedia({ audio: true });
+                          setMicActive(true);
+                          triggerToast("🎤 麦克风已成功授权！");
+                        } catch (err) {
+                          triggerToast("⚠️ 麦克风授权失败或被拒绝，请检查浏览器权限。");
+                        }
+                      }}
+                      className="bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2.5 py-1 rounded-lg text-[10px] transition-all font-medium cursor-pointer"
+                    >
+                      授权麦克风
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 text-[11px] border-t border-white/5 pt-2">
+                    <div className="flex items-center gap-2">
+                      <Camera size={14} className="text-emerald-400" />
+                      <span>摄像头 (提词器背景画面)</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await navigator.mediaDevices.getUserMedia({ video: true });
+                          triggerToast("📷 摄像头已成功授权！");
+                        } catch (err) {
+                          triggerToast("⚠️ 摄像头授权失败或被拒绝，请检查浏览器权限。");
+                        }
+                      }}
+                      className="bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 px-2.5 py-1 rounded-lg text-[10px] transition-all font-medium cursor-pointer"
+                    >
+                      授权相机
+                    </button>
+                  </div>
+                </div>
+
+                {/* OS specific instructions */}
+                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    第二步：开启系统自带『自动画中画』
+                  </span>
+                  <div className="text-[10px] text-white/50 space-y-1.5 leading-relaxed">
+                    <p>
+                      <strong>苹果 iOS：</strong>请确认您的手机已开启该功能。路径：<span className="text-emerald-400 font-medium">『设置 ➔ 通用 ➔ 画中画 ➔ 开启“自动开启画中画”』</span>。
+                    </p>
+                    <p>
+                      <strong>开启后：</strong>在本页面打开浮窗后，<strong>直接上划返回主屏幕，或切换至抖音、微信、系统相机</strong>，浮窗将自动完美跨软件在最顶层悬浮滚动！
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 mt-2">
+                <button
+                  onClick={async () => {
+                    setShowMobileGuideModal(false);
+                    // Standard user gesture triggered PiP
+                    if (!isPipActive) {
+                      await handleTogglePiP();
+                    } else {
+                      triggerToast("请开始录制，FloatCue 提词器与画中画参考已就位。");
+                    }
+                  }}
+                  className="w-full py-3 rounded-2xl bg-white text-black font-semibold text-xs hover:bg-neutral-100 transition-all flex items-center justify-center gap-1.5 shadow-lg active:scale-[0.98] cursor-pointer"
+                >
+                  <Play size={12} fill="currentColor" />
+                  <span>已知晓说明，立即进入越级悬浮</span>
+                </button>
+                <button
+                  onClick={() => setShowMobileGuideModal(false)}
+                  className="w-full py-2.5 rounded-2xl bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition-all text-xs cursor-pointer"
+                >
+                  暂不需要，直接返回
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
