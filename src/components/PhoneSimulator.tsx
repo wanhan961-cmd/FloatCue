@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Camera, RefreshCw, Zap, Volume2, Mic, ShieldCheck, Sparkles, Smartphone, Play, Square } from 'lucide-react';
+import { Camera, CameraOff, RefreshCw, Zap, Volume2, Mic, ShieldCheck, Sparkles, Smartphone, Play, Square } from 'lucide-react';
 import { FloatCueConfig } from '../types';
 import FloatingCueWidget from './FloatingCueWidget';
 
@@ -215,18 +215,40 @@ export default function PhoneSimulator({
               <div className="absolute right-1/3 inset-y-0 border-r border-white/[0.02] z-20" />
 
               {/* Dynamic simulated vector model posture / webcam alternative */}
-              <div className="flex flex-col items-center text-center gap-3 px-6 z-20">
-                <div className="relative">
-                  <div className="w-24 h-24 rounded-full border-2 border-white/10 bg-neutral-800/80 flex items-center justify-center text-white/30 overflow-hidden shadow-2xl backdrop-blur-md">
-                    <Sparkles size={36} className="text-white/30 animate-pulse" />
+              <div className="flex flex-col items-center text-center gap-3 px-4 z-20">
+                {webcamError ? (
+                  <div className="bg-amber-950/45 border border-amber-500/25 backdrop-blur-md rounded-2xl p-4 flex flex-col items-center gap-2.5 max-w-[290px] text-center animate-fade-in shadow-2xl">
+                    <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/15">
+                      <CameraOff size={20} className="animate-pulse" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-amber-400 font-bold text-xs tracking-wider">⚠️ 摄像头授权受限</span>
+                      <p className="text-[9px] text-white/70 leading-normal text-left">
+                        原因：浏览器或系统安全沙盒已默认拒绝了本页面的相机访问授权。这在 Iframe 预览环境中非常常见。
+                      </p>
+                      <div className="text-[8px] text-white/45 leading-relaxed text-left bg-black/45 p-2 rounded-xl border border-white/5 mt-1 flex flex-col gap-1">
+                        <strong className="text-white/60">💡 极速解决方案：</strong>
+                        <div>1. 点击浏览器地址栏左侧的 🔒 安全锁图标</div>
+                        <div>2. 找到「摄像头 (Camera)」并设为「允许」并刷新页面</div>
+                        <div>3. 或者您无需做任何配置，当前系统已自动为您启用<strong>『预置画质构图效果』</strong>，提词功能依然完美运作！</div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col gap-1 text-center">
-                  <span className="text-white/80 font-medium text-xs">前置真实画质构图</span>
-                  <span className="text-white/40 text-[9px] leading-relaxed max-w-[210px]">
-                    {webcamError || '提词器将完全越级悬浮于此画面上方。点击右上角“启用前置镜”开启您的自媒体创作旅程！'}
-                  </span>
-                </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-full border-2 border-white/10 bg-neutral-800/80 flex items-center justify-center text-white/30 overflow-hidden shadow-2xl backdrop-blur-md">
+                        <Sparkles size={36} className="text-white/30 animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 text-center">
+                      <span className="text-white/80 font-medium text-xs">前置真实画质构图</span>
+                      <span className="text-white/40 text-[9px] leading-relaxed max-w-[210px]">
+                        提词器将完全越级悬浮于此画面上方。点击右上角“启用前置镜”开启您的自媒体创作旅程！
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

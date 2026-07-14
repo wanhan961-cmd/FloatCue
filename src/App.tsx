@@ -97,12 +97,13 @@ export default function App() {
 
     const width = canvas.width;
     const height = canvas.height;
+    const currentConfig = configRef.current;
 
     // Clear background
-    ctx.fillStyle = '#0a0a0a';
+    ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, width, height);
 
-    if (config.contentMode === 'text') {
+    if (currentConfig.contentMode === 'text') {
       const lines = linesRef.current;
       const activeIndex = lines.findIndex(l => l.id === activeLineIdRef.current);
       const targetScrollY = activeIndex !== -1 ? activeIndex : 0;
@@ -110,8 +111,12 @@ export default function App() {
       // Smooth scrolling LERP
       pipScrollYRef.current += (targetScrollY - pipScrollYRef.current) * 0.12;
 
-      const centerY = height / 2;
-      const lineSpacing = 72;
+      const centerY = height / 2 + 10; // offset slightly for top status bar
+      const baseFontSize = currentConfig.fontSize || 18;
+      const scaledBaseSize = baseFontSize * 1.5;
+      const activeFontSize = Math.round(scaledBaseSize);
+      const inactiveFontSize = Math.round(scaledBaseSize * 0.78);
+      const lineSpacing = activeFontSize * 2.5;
 
       lines.forEach((line, index) => {
         const relativeIndex = index - pipScrollYRef.current;
@@ -123,22 +128,23 @@ export default function App() {
         const isActive = index === activeIndex;
 
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         if (isActive) {
           ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 28px "Inter", -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.font = `bold ${activeFontSize}px "Inter", -apple-system, BlinkMacSystemFont, sans-serif`;
         } else {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-          ctx.font = '22px "Inter", -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.font = `${inactiveFontSize}px "Inter", -apple-system, BlinkMacSystemFont, sans-serif`;
         }
 
-        const wrappedLines = wrapText(ctx, line.text, width - 100);
+        const wrappedLines = wrapText(ctx, line.text, width - 120);
         wrappedLines.forEach((wrappedText, subIndex) => {
-          const subY = y + (subIndex - (wrappedLines.length - 1) / 2) * 32;
+          const subY = y + (subIndex - (wrappedLines.length - 1) / 2) * (activeFontSize * 1.25);
           ctx.fillText(wrappedText, width / 2, subY);
         });
       });
-    } else if (config.contentMode === 'image' && config.mediaUrl) {
-      const img = imgCacheRef.current[config.mediaUrl];
+    } else if (currentConfig.contentMode === 'image' && currentConfig.mediaUrl) {
+      const img = imgCacheRef.current[currentConfig.mediaUrl];
       if (img && img.complete) {
         const imgRatio = img.width / img.height;
         const canvasRatio = width / height;
@@ -162,18 +168,19 @@ export default function App() {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '20px sans-serif';
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.fillText('正在加载参考图像...', width / 2, height / 2);
 
-        if (!imgCacheRef.current[config.mediaUrl]) {
+        if (!imgCacheRef.current[currentConfig.mediaUrl]) {
           const newImg = new Image();
           newImg.crossOrigin = "anonymous";
-          newImg.src = config.mediaUrl;
+          newImg.src = currentConfig.mediaUrl;
           newImg.onload = () => {
-            imgCacheRef.current[config.mediaUrl!] = newImg;
+            imgCacheRef.current[currentConfig.mediaUrl!] = newImg;
           };
         }
       }
-    } else if (config.contentMode === 'video' && config.mediaUrl) {
+    } else if (currentConfig.contentMode === 'video' && currentConfig.mediaUrl) {
       const srcVideo = document.getElementById('floating-cue-widget-video') as HTMLVideoElement;
       if (srcVideo) {
         ctx.drawImage(srcVideo, 0, 0, width, height);
@@ -183,9 +190,88 @@ export default function App() {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '18px sans-serif';
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.fillText('参考视频就绪 (请在主界面播放视频)', width / 2, height / 2);
       }
     }
+
+    // 2. Draw Top Status Bar Panel Overlay to match the floating widget top bar exactly
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.85)';
+    ctx.fillRect(4, 4, width - 8, 36);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(4, 40);
+    ctx.lineTo(width - 4, 40);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.font = 'bold 11px "JetBrains Mono", Menlo, Courier, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const modeLabel = currentConfig.contentMode === 'text' ? 'FLOATCUE ∙ PROMPTER' : 'FLOATCUE ∙ PIP REFERENCE';
+    ctx.fillText(modeLabel, 20, 22);
+
+    ctx.textAlign = 'right';
+    let badgeX = width - 20;
+
+    if (currentConfig.contentMode === 'text') {
+      if (currentConfig.voiceScrolling) {
+        ctx.fillStyle = '#38bdf8'; // sky-400
+        ctx.font = 'bold 10px "JetBrains Mono", Menlo, Courier, monospace';
+        ctx.fillText('🎙️ VOICE SYNC', badgeX, 22);
+        badgeX -= 110;
+      }
+      if (currentConfig.autoScroll) {
+        ctx.fillStyle = '#34d399'; // emerald-400
+        ctx.font = 'bold 10px "JetBrains Mono", Menlo, Courier, monospace';
+        ctx.fillText('🟢 AUTO SCROLL', badgeX, 22);
+        badgeX -= 120;
+      }
+    }
+
+    // 3. Draw high-fidelity Countdown Overlay if active
+    const countdown = autoScrollCountdownRef.current;
+    if (currentConfig.contentMode === 'text' && countdown !== null) {
+      ctx.fillStyle = 'rgba(5, 5, 5, 0.82)';
+      ctx.fillRect(4, 4, width - 8, height - 8);
+
+      // Draw countdown circle
+      ctx.strokeStyle = '#10B981';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2 - 20, 48, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Draw countdown number
+      ctx.fillStyle = '#10B981';
+      ctx.font = 'bold 50px "Inter", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(countdown.toString(), width / 2, height / 2 - 20);
+
+      // Draw "准备开始" text
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = 'bold 15px "Inter", -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.fillText('准备开始', width / 2, height / 2 + 55);
+    }
+
+    // 4. Draw elegant outer glassmorphic-styled rounded container border frame around the canvas
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const radius = 16;
+    ctx.moveTo(radius, 4);
+    ctx.lineTo(width - radius, 4);
+    ctx.quadraticCurveTo(width - 4, 4, width - 4, radius);
+    ctx.lineTo(width - 4, height - radius);
+    ctx.quadraticCurveTo(width - 4, height - 4, width - radius, height - 4);
+    ctx.lineTo(radius, height - 4);
+    ctx.quadraticCurveTo(4, height - 4, 4, height - radius);
+    ctx.lineTo(4, radius);
+    ctx.quadraticCurveTo(4, 4, radius, 4);
+    ctx.stroke();
 
     requestAnimationFrameRef.current = requestAnimationFrame(animatePipCanvas);
   };
@@ -282,6 +368,9 @@ export default function App() {
   const linesRef = useRef(config.lines);
   const activeLineIdRef = useRef(activeLineId);
   const autoScrollStartedRef = useRef<boolean>(false);
+  const isAutoScrollPlayingRef = useRef<boolean>(false);
+  const autoScrollCountdownRef = useRef<number | null>(null);
+  const configRef = useRef(config);
 
   // Reset the starting ref when autoScroll is turned off or overlay is deactivated
   useEffect(() => {
@@ -294,15 +383,32 @@ export default function App() {
 
   useEffect(() => {
     linesRef.current = config.lines;
-  }, [config.lines]);
+    configRef.current = config;
+  }, [config]);
 
   useEffect(() => {
     activeLineIdRef.current = activeLineId;
   }, [activeLineId]);
+
+  useEffect(() => {
+    isAutoScrollPlayingRef.current = isAutoScrollPlaying;
+  }, [isAutoScrollPlaying]);
+
+  useEffect(() => {
+    autoScrollCountdownRef.current = autoScrollCountdown;
+  }, [autoScrollCountdown]);
   
   // Real voice microphone state
   const [micActive, setMicActive] = useState<boolean>(false);
   const [speechTranscript, setSpeechTranscript] = useState<string>('');
+  const [speechError, setSpeechError] = useState<string | null>(null);
+
+  // Reset speech error when microphone starts
+  useEffect(() => {
+    if (micActive) {
+      setSpeechError(null);
+    }
+  }, [micActive]);
   
   // Real-time voice synchronization continuous character index
   const currentGRef = useRef<number>(0);
@@ -568,7 +674,10 @@ export default function App() {
             console.error('Speech recognition error:', event.error);
             if (event.error === 'not-allowed') {
               setMicActive(false);
+              setSpeechError('not-allowed');
               triggerToast('未获得麦克风授权，请先在浏览器中允许录音。');
+            } else {
+              setSpeechError(event.error || 'unknown');
             }
           };
 
@@ -847,6 +956,8 @@ export default function App() {
             isOverlayActive={isOverlayActive}
             micActive={micActive}
             setMicActive={setMicActive}
+            speechError={speechError}
+            setSpeechError={setSpeechError}
             isSimulatingVoice={isSimulatingVoice}
             onStartVoiceSimulation={handleStartVoiceSimulation}
             onStopVoiceSimulation={handleStopVoiceSimulation}

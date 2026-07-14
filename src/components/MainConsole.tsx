@@ -14,7 +14,8 @@ import {
   Check, 
   Eye, 
   SlidersHorizontal,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 import { FloatCueConfig, PrompterLine } from '../types';
 import { DEFAULT_SCRIPT_LINES, PRESET_IMAGES, PRESET_VIDEOS } from '../presets';
@@ -28,6 +29,8 @@ interface MainConsoleProps {
   // Real-time microphone and speech states
   micActive: boolean;
   setMicActive: (active: boolean) => void;
+  speechError: string | null;
+  setSpeechError: (error: string | null) => void;
   isSimulatingVoice: boolean;
   onStartVoiceSimulation: () => void;
   onStopVoiceSimulation: () => void;
@@ -48,6 +51,8 @@ export default function MainConsole({
   isOverlayActive,
   micActive,
   setMicActive,
+  speechError,
+  setSpeechError,
   isSimulatingVoice,
   onStartVoiceSimulation,
   onStopVoiceSimulation,
@@ -584,6 +589,36 @@ export default function MainConsole({
                   <span>{isSimulatingVoice ? '停止模拟器' : '模拟人声自动朗读'}</span>
                 </button>
               </div>
+
+              {/* If permission denied error exists, show beautiful detailed helper instruction */}
+              {speechError === 'not-allowed' && (
+                <div className="bg-amber-950/30 border border-amber-500/20 rounded-xl p-3 flex flex-col gap-1.5 animate-fade-in text-left">
+                  <div className="flex items-center gap-1.5 text-[10px] text-amber-400 font-bold">
+                    <AlertTriangle size={12} className="shrink-0" />
+                    <span>麦克风录音访问受限 (not-allowed)</span>
+                  </div>
+                  <p className="text-[10px] text-white/70 leading-relaxed font-light">
+                    由于浏览器安全沙盒限制或麦克风授权被拒，当前无法使用真实声音控制滚动。
+                  </p>
+                  <div className="bg-black/30 p-2 rounded-lg border border-white/5 flex flex-col gap-1.5">
+                    <button
+                      onClick={() => {
+                        setSpeechError(null);
+                        onStartVoiceSimulation();
+                      }}
+                      className="w-full text-left text-[9px] text-amber-400 font-bold hover:underline flex items-center gap-1"
+                    >
+                      <span>➔ 立即点击此处启用『人声模拟自动朗读』</span>
+                    </button>
+                    <p className="text-[9px] text-white/40 leading-relaxed pl-3.5 font-light">
+                      系统将极速调用本地高仿真合成人声（TTS）为您示范朗读文案，高亮和滚动完美随声音极速同步！
+                    </p>
+                    <p className="text-[8px] text-white/30 leading-normal pl-3.5 border-t border-white/5 pt-1 mt-0.5">
+                      若后续要使用实体麦克风，请点击浏览器上方地址栏的 🔒 安全锁图标，将麦克风设为「允许」并重新加载页面。
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Status transcript helper */}
               <div className="bg-black/40 border border-white/5 rounded-lg p-2 min-h-8 flex flex-col justify-center">
