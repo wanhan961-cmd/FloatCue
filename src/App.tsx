@@ -44,6 +44,267 @@ export default function App() {
   // State management
   const [activeLineId, setActiveLineId] = useState<string>('1');
   const [isOverlayActive, setIsOverlayActive] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  // System-level Picture-in-Picture States and Refs
+  const [isPipActive, setIsPipActive] = useState<boolean>(false);
+  const pipCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pipVideoRef = useRef<HTMLVideoElement | null>(null);
+  const pipScrollYRef = useRef<number>(0);
+  const requestAnimationFrameRef = useRef<number | null>(null);
+  const imgCacheRef = useRef<{ [url: string]: HTMLImageElement }>({});
+
+  // Detect mobile viewports dynamically
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Text Wrapping Helper for Canvas
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+    const words = text.split('');
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    for (let n = 0; n < words.length; n++) {
+      const testLine = currentLine + words[n];
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      if (testWidth > maxWidth && n > 0) {
+        lines.push(currentLine);
+        currentLine = words[n];
+      } else {
+        currentLine = testLine;
+      }
+    }
+    lines.push(currentLine);
+    return lines;
+  };
+
+  // Canvas Teleprompter Animation Loop
+  const animatePipCanvas = () => {
+    if (!pipCanvasRef.current) return;
+    const canvas = pipCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Clear background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, width, height);
+
+    if (config.contentMode === 'text') {
+      // Glow boundary
+      ctx.strokeStyle = '#10B981';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, width - 4, height - 4);
+
+      // Header info
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('FLOATCUE LIVE SYSTEM ∙ AUTOSCROLL', 20, 25);
+
+      // REC status
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(width - 30, 22, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      const lines = linesRef.current;
+      const activeIndex = lines.findIndex(l => l.id === activeLineIdRef.current);
+      const targetScrollY = activeIndex !== -1 ? activeIndex : 0;
+
+      // Smooth scrolling LERP
+      pipScrollYRef.current += (targetScrollY - pipScrollYRef.current) * 0.12;
+
+      const centerY = height / 2;
+      const lineSpacing = 70;
+
+      lines.forEach((line, index) => {
+        const relativeIndex = index - pipScrollYRef.current;
+        const y = centerY + relativeIndex * lineSpacing;
+
+        // Skip drawing if offscreen
+        if (y < -60 || y > height + 60) return;
+
+        const isActive = index === activeIndex;
+
+        ctx.textAlign = 'center';
+        if (isActive) {
+          ctx.fillStyle = '#10B981';
+          ctx.font = 'bold 26px sans-serif';
+          
+          // Draw focal brackets around active line
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+          ctx.lineWidth = 2;
+          
+          ctx.beginPath();
+          ctx.moveTo(40, y - 22);
+          ctx.lineTo(20, y - 22);
+          ctx.lineTo(20, y + 10);
+          ctx.lineTo(40, y + 10);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(width - 40, y - 22);
+          ctx.lineTo(width - 20, y - 22);
+          ctx.lineTo(width - 20, y + 10);
+          ctx.lineTo(width - 40, y + 10);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+          ctx.font = '20px sans-serif';
+        }
+
+        const wrappedLines = wrapText(ctx, line.text, width - 120);
+        wrappedLines.forEach((wrappedText, subIndex) => {
+          const subY = y + (subIndex - (wrappedLines.length - 1) / 2) * 28;
+          ctx.fillText(wrappedText, width / 2, subY);
+        });
+      });
+    } else if (config.contentMode === 'image' && config.mediaUrl) {
+      const img = imgCacheRef.current[config.mediaUrl];
+      if (img && img.complete) {
+        const imgRatio = img.width / img.height;
+        const canvasRatio = width / height;
+        let drawWidth = width;
+        let drawHeight = height;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (imgRatio > canvasRatio) {
+          drawHeight = width / imgRatio;
+          offsetY = (height - drawHeight) / 2;
+        } else {
+          drawWidth = height * imgRatio;
+          offsetX = (width - drawWidth) / 2;
+        }
+
+        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+      } else {
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('正在加载参考图像...', width / 2, height / 2);
+
+        if (!imgCacheRef.current[config.mediaUrl]) {
+          const newImg = new Image();
+          newImg.crossOrigin = "anonymous";
+          newImg.src = config.mediaUrl;
+          newImg.onload = () => {
+            imgCacheRef.current[config.mediaUrl!] = newImg;
+          };
+        }
+      }
+    } else if (config.contentMode === 'video' && config.mediaUrl) {
+      const srcVideo = document.getElementById('floating-cue-widget-video') as HTMLVideoElement;
+      if (srcVideo) {
+        ctx.drawImage(srcVideo, 0, 0, width, height);
+      } else {
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('参考视频就绪 (请在主界面播放视频)', width / 2, height / 2);
+      }
+    }
+
+    requestAnimationFrameRef.current = requestAnimationFrame(animatePipCanvas);
+  };
+
+  // Run the canvas rendering engine on layout changes
+  useEffect(() => {
+    requestAnimationFrameRef.current = requestAnimationFrame(animatePipCanvas);
+    return () => {
+      if (requestAnimationFrameRef.current) {
+        cancelAnimationFrame(requestAnimationFrameRef.current);
+      }
+    };
+  }, [config, activeLineId]);
+
+  // Request system Picture-in-Picture (PiP)
+  const handleTogglePiP = async () => {
+    const video = pipVideoRef.current;
+    const canvas = pipCanvasRef.current;
+    if (!video || !canvas) {
+      triggerToast("⚠️ 正在准备悬浮环境，请稍后重试...");
+      return;
+    }
+
+    if (isPipActive) {
+      try {
+        if (document.exitPictureInPicture) {
+          await document.exitPictureInPicture();
+        } else if ((video as any).webkitSetPresentationMode) {
+          await (video as any).webkitSetPresentationMode("inline");
+        }
+        setIsPipActive(false);
+      } catch (err) {
+        console.error("Failed to exit Picture-in-Picture:", err);
+      }
+    } else {
+      try {
+        let stream: MediaStream;
+        if ((canvas as any).captureStream) {
+          stream = (canvas as any).captureStream(24);
+        } else if ((canvas as any).mozCaptureStream) {
+          stream = (canvas as any).mozCaptureStream(24);
+        } else {
+          throw new Error("captureStream is not supported on this browser");
+        }
+
+        video.srcObject = stream;
+        await video.play();
+
+        if (video.requestPictureInPicture) {
+          await video.requestPictureInPicture();
+        } else if ((video as any).webkitSetPresentationMode) {
+          await (video as any).webkitSetPresentationMode("picture-in-picture");
+        } else {
+          throw new Error("Picture-in-Picture API is not supported in this browser");
+        }
+
+        setIsPipActive(true);
+        triggerToast("🎉 跨软件系统悬浮提词（画中画）已开启！现在您可以切出微信、桌面对齐相机拍摄啦！");
+      } catch (err: any) {
+        console.error("Failed to enter Picture-in-Picture:", err);
+        triggerToast("⚠️ 开启画中画失败。请确保在 Safari/Chrome 浏览器中打开，且该浏览器支持视频画中画协议。");
+      }
+    }
+  };
+
+  // Listen to browser Picture-in-Picture close actions
+  useEffect(() => {
+    const video = pipVideoRef.current;
+    if (!video) return;
+
+    const handleLeave = () => {
+      setIsPipActive(false);
+      triggerToast("浮窗画中画已收回。");
+    };
+
+    video.addEventListener('leavepictureinpicture', handleLeave);
+    video.addEventListener('webkitpresentationmodechanged', () => {
+      if ((video as any).webkitPresentationMode === 'inline') {
+        setIsPipActive(false);
+        triggerToast("浮窗画中画已收回。");
+      }
+    });
+
+    return () => {
+      video.removeEventListener('leavepictureinpicture', handleLeave);
+    };
+  }, []);
 
   // States for Countdown & Continuous Auto Scroll Playback
   const [isAutoScrollPlaying, setIsAutoScrollPlaying] = useState<boolean>(false);
@@ -164,17 +425,25 @@ export default function App() {
   };
 
   // Launch FloatCue Float Mode action
-  const handleActivate = () => {
+  const handleActivate = async () => {
     setIsOverlayActive(true);
-    triggerToast("请开始录制，FloatCue 提词器与画中画参考已就位。");
+    if (!isPipActive) {
+      await handleTogglePiP();
+    } else {
+      triggerToast("请开始录制，FloatCue 提词器与画中画参考已就位。");
+    }
   };
 
   // Double click or close callback
-  const handleDeactivate = () => {
+  const handleDeactivate = async () => {
     setIsOverlayActive(false);
     setMicActive(false);
     handleStopVoiceSimulation();
-    triggerToast("浮窗已成功收回控制台。");
+    if (isPipActive) {
+      await handleTogglePiP(); // exits PiP
+    } else {
+      triggerToast("浮窗已成功收回控制台。");
+    }
   };
 
   // Enforce state constraints (like mutual exclusivity) in a single unified config handler
@@ -594,7 +863,7 @@ export default function App() {
         {/* Left Side: Setup Control Panel */}
         <div 
           className={`h-full transition-all duration-500 ease-in-out border-r border-white/10 shrink-0 ${
-            isPhoneFocusMode 
+            (isMobile && isOverlayActive) || isPhoneFocusMode
               ? 'w-0 opacity-0 pointer-events-none overflow-hidden' 
               : 'w-full lg:w-[480px]'
           }`}
@@ -615,33 +884,41 @@ export default function App() {
             onStartAutoScroll={handleStartAutoScroll}
             onPauseAutoScroll={handlePauseAutoScroll}
             onResetAutoScroll={handleResetAutoScroll}
+            onTogglePiP={handleTogglePiP}
+            isPipActive={isPipActive}
           />
         </div>
 
         {/* Right Side: Smartphone filming Stage & Interactive Simulator */}
-        <div className="flex-1 h-full bg-[#0A0A0A] flex flex-col relative items-center justify-center">
+        <div 
+          className={`flex-1 h-full bg-[#0A0A0A] flex flex-col relative items-center justify-center ${
+            isMobile && !isOverlayActive ? 'hidden lg:flex' : ''
+          }`}
+        >
           
           {/* Top Stage Control toolbar */}
-          <div className="absolute top-6 inset-x-6 flex items-center justify-between z-30 pointer-events-none">
-            <div className="flex items-center gap-2 pointer-events-auto bg-black/40 backdrop-blur-md border border-white/5 px-3 py-1.5 rounded-full">
-              <Smartphone size={12} className="text-white/60" />
-              <span className="text-[10px] font-mono tracking-wide text-white/50">
-                {isPhoneFocusMode ? 'STUDIO CONSOLE MINIMIZED' : 'LIVE RECORDING STAGE'}
-              </span>
-            </div>
+          {(!isMobile || !isOverlayActive) && (
+            <div className="absolute top-6 inset-x-6 flex items-center justify-between z-30 pointer-events-none">
+              <div className="flex items-center gap-2 pointer-events-auto bg-black/40 backdrop-blur-md border border-white/5 px-3 py-1.5 rounded-full">
+                <Smartphone size={12} className="text-white/60" />
+                <span className="text-[10px] font-mono tracking-wide text-white/50">
+                  {isPhoneFocusMode ? 'STUDIO CONSOLE MINIMIZED' : 'LIVE RECORDING STAGE'}
+                </span>
+              </div>
 
-            {/* Minimize / Maximize Sidebar Control */}
-            <button
-              onClick={() => setIsPhoneFocusMode(!isPhoneFocusMode)}
-              className="pointer-events-auto bg-[#121314] hover:bg-neutral-800 text-white/60 hover:text-white border border-white/10 p-2 rounded-full transition-all flex items-center justify-center shadow-lg"
-              title={isPhoneFocusMode ? "展现控制面板" : "最大化手机拍摄模拟器"}
-            >
-              {isPhoneFocusMode ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
-            </button>
-          </div>
+              {/* Minimize / Maximize Sidebar Control */}
+              <button
+                onClick={() => setIsPhoneFocusMode(!isPhoneFocusMode)}
+                className="pointer-events-auto bg-[#121314] hover:bg-neutral-800 text-white/60 hover:text-white border border-white/10 p-2 rounded-full transition-all flex items-center justify-center shadow-lg"
+                title={isPhoneFocusMode ? "展现控制面板" : "最大化手机拍摄模拟器"}
+              >
+                {isPhoneFocusMode ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+              </button>
+            </div>
+          )}
 
           {/* Render the Interactive smartphone sandbox */}
-          <div className="w-full h-full flex items-center justify-center p-4">
+          <div className="w-full h-full flex items-center justify-center p-0 lg:p-4">
             <PhoneSimulator
               config={config}
               activeLineId={activeLineId}
@@ -661,16 +938,49 @@ export default function App() {
               onPauseAutoScroll={handlePauseAutoScroll}
               onResetAutoScroll={handleResetAutoScroll}
               micActive={micActive}
+              isMobile={isMobile}
             />
           </div>
 
           {/* Quick instructions floating banner */}
-          <div className="absolute bottom-6 inset-x-6 text-center text-[10px] text-white/20 font-light tracking-wide pointer-events-none">
-            FloatCue Studio Model ∙ 极简主义设计致敬 Apple ∙ Made by AI Studio Build
-          </div>
+          {(!isMobile || !isOverlayActive) && (
+            <div className="absolute bottom-6 inset-x-6 text-center text-[10px] text-white/20 font-light tracking-wide pointer-events-none">
+              FloatCue Studio Model ∙ 极简主义设计致敬 Apple ∙ Made by AI Studio Build
+            </div>
+          )}
         </div>
 
       </div>
+
+      {/* Hidden canvas & video layers for Picture-in-Picture generation */}
+      <canvas
+        ref={pipCanvasRef}
+        width={800}
+        height={450}
+        style={{
+          position: 'absolute',
+          top: '-9999px',
+          left: '-9999px',
+          opacity: 0,
+          pointerEvents: 'none',
+          width: '10px',
+          height: '10px'
+        }}
+      />
+      <video
+        ref={pipVideoRef}
+        playsInline
+        muted
+        style={{
+          position: 'absolute',
+          top: '-9999px',
+          left: '-9999px',
+          opacity: 0,
+          pointerEvents: 'none',
+          width: '10px',
+          height: '10px'
+        }}
+      />
     </div>
   );
 }

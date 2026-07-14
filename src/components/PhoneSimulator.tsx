@@ -22,6 +22,7 @@ interface PhoneSimulatorProps {
   onPauseAutoScroll?: () => void;
   onResetAutoScroll?: () => void;
   micActive: boolean;
+  isMobile?: boolean;
 }
 
 export default function PhoneSimulator({
@@ -42,7 +43,8 @@ export default function PhoneSimulator({
   onStartAutoScroll,
   onPauseAutoScroll,
   onResetAutoScroll,
-  micActive
+  micActive,
+  isMobile = false
 }: PhoneSimulatorProps) {
   const screenRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -153,22 +155,32 @@ export default function PhoneSimulator({
         ref={screenRef}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        style={{ width: '350px', height: '758px' }}
-        className="relative bg-black rounded-[54px] shadow-[0_0_0_12px_#1F1F1F,0_0_0_13px_#121212,0_25px_50px_-12px_rgba(0,0,0,0.9)] border border-neutral-900 overflow-hidden select-none flex flex-col group cursor-crosshair"
+        style={
+          isMobile && isOverlayActive
+            ? { width: '100%', height: '100%', borderRadius: '0px' }
+            : { width: '350px', height: '758px', borderRadius: '54px' }
+        }
+        className={`relative bg-black border border-neutral-900 overflow-hidden select-none flex flex-col group cursor-crosshair ${
+          isMobile && isOverlayActive
+            ? 'shadow-none border-none'
+            : 'shadow-[0_0_0_12px_#1F1F1F,0_0_0_13px_#121212,0_25px_50px_-12px_rgba(0,0,0,0.9)]'
+        }`}
       >
         {/* iPhone 17 Sleek Dynamic Island / Pill Camera Capsule Punch Hole */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-50 flex items-center justify-between px-3 border border-white/10 shadow-lg">
-          {/* Proximity & Ambient Light Sensor */}
-          <div className="w-1.5 h-1.5 rounded-full bg-neutral-950" />
-          {/* Dynamic Capsule Speaker Grill */}
-          <div className="w-8 h-0.5 rounded-full bg-neutral-800" />
-          {/* High-Fidelity Front Camera Lens with Blue Aperture Glass Highlight */}
-          <div className="w-3.5 h-3.5 rounded-full bg-neutral-900 border border-neutral-800 relative flex items-center justify-center">
-            <div className="w-1.5 h-1.5 bg-[#1a2b4c] rounded-full relative flex items-center justify-center">
-              <div className="w-0.5 h-0.5 bg-sky-400 rounded-full animate-pulse" />
+        {(!isMobile || !isOverlayActive) && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-50 flex items-center justify-between px-3 border border-white/10 shadow-lg">
+            {/* Proximity & Ambient Light Sensor */}
+            <div className="w-1.5 h-1.5 rounded-full bg-neutral-950" />
+            {/* Dynamic Capsule Speaker Grill */}
+            <div className="w-8 h-0.5 rounded-full bg-neutral-800" />
+            {/* High-Fidelity Front Camera Lens with Blue Aperture Glass Highlight */}
+            <div className="w-3.5 h-3.5 rounded-full bg-neutral-900 border border-neutral-800 relative flex items-center justify-center">
+              <div className="w-1.5 h-1.5 bg-[#1a2b4c] rounded-full relative flex items-center justify-center">
+                <div className="w-0.5 h-0.5 bg-sky-400 rounded-full animate-pulse" />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Real-time filming interface details (overlays on camera background) */}
         <div className="absolute inset-x-6 top-14 flex items-center justify-between text-white/80 text-[10px] font-mono z-30 pointer-events-none">
@@ -352,6 +364,17 @@ export default function PhoneSimulator({
             onResetAutoScroll={onResetAutoScroll}
             isVoiceActive={micActive || isSimulatingVoice}
           />
+        )}
+
+        {/* Mobile floating exit button */}
+        {isMobile && isOverlayActive && (
+          <button
+            onClick={onDeactivate}
+            className="absolute bottom-8 right-6 z-50 bg-black/80 backdrop-blur-md border border-white/15 px-4 py-2 rounded-full text-xs font-semibold text-white/90 shadow-lg flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+          >
+            <Smartphone size={14} className="text-emerald-400" />
+            <span>返回设置</span>
+          </button>
         )}
 
         {/* Bottom Simulated iOS Home Bar indicator */}

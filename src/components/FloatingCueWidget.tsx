@@ -192,8 +192,13 @@ export default function FloatingCueWidget({
     const halfWidth = currentWidth / 2;
     const halfHeight = currentHeight / 2;
     
-    const clampedX = Math.max(halfWidth, Math.min(350 - halfWidth, targetX));
-    const clampedY = Math.max(halfHeight, Math.min(758 - halfHeight, targetY));
+    // Dynamic boundary check based on screen width
+    const isMobileView = typeof window !== 'undefined' && window.innerWidth < 1024;
+    const screenWidth = isMobileView ? window.innerWidth : 350;
+    const screenHeight = isMobileView ? window.innerHeight : 758;
+
+    const clampedX = Math.max(halfWidth, Math.min(screenWidth - halfWidth, targetX));
+    const clampedY = Math.max(halfHeight, Math.min(screenHeight - halfHeight, targetY));
 
     onPositionChange({
       x: clampedX,
@@ -497,10 +502,14 @@ export default function FloatingCueWidget({
     const halfWidth = currentWidth / 2;
     const halfHeight = currentHeight / 2;
 
+    const isMobileView = typeof window !== 'undefined' && window.innerWidth < 1024;
+    const screenWidth = isMobileView ? window.innerWidth : 350;
+    const screenHeight = isMobileView ? window.innerHeight : 758;
+
     const minX = halfWidth;
-    const maxX = 350 - halfWidth;
+    const maxX = screenWidth - halfWidth;
     const minY = halfHeight;
-    const maxY = 758 - halfHeight;
+    const maxY = screenHeight - halfHeight;
 
     let adjustedX = position.x;
     let adjustedY = position.y;

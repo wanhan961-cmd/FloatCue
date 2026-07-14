@@ -37,6 +37,8 @@ interface MainConsoleProps {
   onStartAutoScroll?: () => void;
   onPauseAutoScroll?: () => void;
   onResetAutoScroll?: () => void;
+  onTogglePiP?: () => void;
+  isPipActive?: boolean;
 }
 
 export default function MainConsole({
@@ -54,7 +56,9 @@ export default function MainConsole({
   autoScrollCountdown,
   onStartAutoScroll,
   onPauseAutoScroll,
-  onResetAutoScroll
+  onResetAutoScroll,
+  onTogglePiP,
+  isPipActive = false
 }: MainConsoleProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -609,7 +613,7 @@ export default function MainConsole({
       </div>
 
       {/* CORE CONTROL LAUNCH BUTTON */}
-      <div className="flex flex-col gap-4 mt-6 border-t border-white/5 pt-5">
+      <div className="flex flex-col gap-3 mt-6 border-t border-white/5 pt-5">
         {/* Compliance and privacy disclosure */}
         <div className="flex items-start gap-2 text-[10px] text-white/30 font-light">
           <ShieldCheck size={14} className="text-emerald-500/70 shrink-0 mt-0.5" />
@@ -618,26 +622,46 @@ export default function MainConsole({
           </p>
         </div>
 
-        <button
-          onClick={onActivate}
-          className={`w-full py-4 rounded-2xl font-display font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
-            isOverlayActive
-              ? 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white border border-white/10'
-              : 'bg-white text-black hover:bg-neutral-100 shadow-[0_8px_30px_rgb(255,255,255,0.15)] active:scale-[0.98]'
-          }`}
-        >
-          {isOverlayActive ? (
-            <>
-              <SlidersHorizontal size={14} />
-              <span>微调 FloatCue 设置</span>
-            </>
-          ) : (
-            <>
-              <Play size={14} fill="currentColor" />
-              <span>开启 FloatCue 灵动浮窗</span>
-            </>
-          )}
-        </button>
+        {/* Action Buttons Container */}
+        <div className="flex flex-col gap-2.5">
+          {/* Button 1: Normal In-App Floating Overlay + PiP System-Wide Overlay */}
+          <button
+            onClick={onActivate}
+            className={`w-full py-3.5 rounded-2xl font-display font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+              isOverlayActive
+                ? 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white border border-white/10'
+                : 'bg-white text-black hover:bg-neutral-100 shadow-[0_8px_30px_rgb(255,255,255,0.15)] active:scale-[0.98]'
+            }`}
+          >
+            {isOverlayActive ? (
+              <>
+                <SlidersHorizontal size={14} />
+                <span>微调 FloatCue 设置</span>
+              </>
+            ) : (
+              <>
+                <Play size={14} fill="currentColor" />
+                <span>开启 FloatCue 灵动浮窗</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* iOS Picture in Picture Guideline card */}
+        <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 mt-2 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 text-[10px] text-emerald-400 font-bold tracking-wider uppercase">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>iOS 手机专属 ∙ 跨软件悬浮攻略</span>
+          </div>
+          <p className="text-[10px] text-white/50 leading-relaxed">
+            因 iOS 苹果系统沙盒安全限制，标准网页无法直接跨软件悬浮。<strong>FloatCue 特别研发“越级悬浮画中画技术”</strong>：
+          </p>
+          <ol className="text-[10px] text-white/40 list-decimal pl-4 space-y-1 leading-relaxed">
+            <li>点击上方的 <span className="text-emerald-400 font-medium">开启 FloatCue 灵动浮窗</span> 按钮</li>
+            <li>在弹出的系统浮窗右上方，点击“画中画缩放”图标将其悬浮</li>
+            <li>此时您可以<strong>直接划掉 Safari 浏览器，打开系统相机、抖音、微信</strong>，提词窗依然会悬浮在屏幕最上层自动滚动！</li>
+          </ol>
+        </div>
       </div>
     </div>
   );
