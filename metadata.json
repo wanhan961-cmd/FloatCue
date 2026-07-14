@@ -1,0 +1,6 @@
+{
+  "name": "FloatCue 灵动浮窗",
+  "description": "极致轻量的悬浮提词与构图工具，支持智能眼神跟随、AI语音同步滚动、画中画视频/图片参考。",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
